@@ -10,22 +10,32 @@ using Unity.CompilationPipeline.Common.ILPostProcessing;
 namespace DependencyInjection.CodeGen
 {
     /// <summary>
-    /// ILPostProcessor that weaves <see cref="DependencyInjection.Binder"/> calls into injectable <c>MonoBehaviour</c>s so that
-    /// explicit <c>Binder.Bind(this)</c> / <c>Binder.Unbind(this)</c> are not required. A type is woven when it derives
-    /// from <c>MonoBehaviour</c>, declares an <c>[Inject]</c>/<c>[Track]</c> member or is <c>[Install]</c>-marked, is not
-    /// <c>[ManualBind]</c>, and neither it nor a base type already binds. Weaving is additive: a type whose chain already
-    /// binds is skipped, so the weaver coexists with existing manual binding.
+    /// ILPostProcessor that weaves <see cref="DependencyInjection.Binder"/> calls into injectable types so that explicit
+    /// <c>Binder.Bind(this)</c> / <c>Binder.Unbind(this)</c> are not required. A type is woven when it declares an
+    /// <c>[Inject]</c>/<c>[Track]</c> member and is neither <c>[ManualBind]</c> nor <c>[Install]</c>-marked —
+    /// <c>[Install]</c> providers are services bound manually in installers, so the weaver leaves them alone.
+    /// <para>
+    /// <c>MonoBehaviour</c>s bind in <c>Awake</c> and unbind in <c>OnDestroy</c> (synthesized when absent). Plain classes
+    /// bind in their constructor and unbind in <c>Dispose</c>; a plain class that uses <c>[Track]</c> must be
+    /// <see cref="System.IDisposable"/> (otherwise the binder keeps it alive forever and it leaks), which the weaver
+    /// reports as a build error.
+    /// </para>
+    /// Weaving is additive: anything that already binds (itself or via a base) is skipped, so it coexists with manual binding.
     /// </summary>
     public sealed class InjectionWeaver : ILPostProcessor
     {
         private const string TARGET_DEPENDENCY = "DependencyInjection";
         private const string INJECT_ATTRIBUTE = "DependencyInjection.Inject";
         private const string INSTALL_ATTRIBUTE = "DependencyInjection.Install";
+        private const string TRACK_ATTRIBUTE = "DependencyInjection.Track";
         private const string MANUAL_BIND_ATTRIBUTE = "DependencyInjection.ManualBind";
         private const string MONO_BEHAVIOUR = "UnityEngine.MonoBehaviour";
+        private const string DISPOSABLE = "System.IDisposable";
         private const string BINDER_TYPE = "DependencyInjection.Binder";
         private const string AWAKE = "Awake";
         private const string ON_DESTROY = "OnDestroy";
+        private const string DISPOSE = "Dispose";
+        private const string CONSTRUCTOR = ".ctor";
         private const string BIND = "Bind";
         private const string UNBIND = "Unbind";
 
@@ -123,19 +133,139 @@ namespace DependencyInjection.CodeGen
         {
             if (!type.IsClass || IsStatic(type))
                 return false;
-            if (!DerivesFromMonoBehaviour(type))
-                return false;
             if (HasAttribute(type, MANUAL_BIND_ATTRIBUTE))
+                return false;
+            // [Install] providers (services) are bound manually in installers, never woven.
+            if (HasInstall(type))
                 return false;
             if (!IsInjectable(type))
                 return false;
+
+            return DerivesFromMonoBehaviour(type)
+                ? WeaveMonoBehaviour(type, module, bind, unbind, diagnostics)
+                : WeavePlainClass(type, bind, unbind, diagnostics);
+        }
+
+        // MonoBehaviour: bind at the end of Awake, unbind at the end of OnDestroy (after the type's own teardown, so its
+        // cleanup can still touch injected fields, which Unbind clears). Both are synthesized with a base call when absent.
+        private static bool WeaveMonoBehaviour(TypeDefinition type, ModuleDefinition module, MethodReference bind, MethodReference unbind, List<DiagnosticMessage> diagnostics)
+        {
             if (ChainBinds(type))
                 return false;
 
             var boundAwake = EnsureLifecycle(type, module, AWAKE, bind, atEnd: true, diagnostics);
-            var boundDestroy = EnsureLifecycle(type, module, ON_DESTROY, unbind, atEnd: false, diagnostics);
+            var boundDestroy = EnsureLifecycle(type, module, ON_DESTROY, unbind, atEnd: true, diagnostics);
             return boundAwake || boundDestroy;
         }
+
+        // Plain class: bind at the end of the constructor, unbind at the start of Dispose. A [Track] type must be IDisposable.
+        private static bool WeavePlainClass(TypeDefinition type, MethodReference bind, MethodReference unbind, List<DiagnosticMessage> diagnostics)
+        {
+            // Every constructor in the chain runs, so only the top-most injectable type binds: its Bind(this) resolves the
+            // whole derived instance. A type with an injectable base is already bound by that base's constructor.
+            if (HasInjectableBase(type))
+                return false;
+
+            var dispose = DeclaredLifecycle(type, DISPOSE);
+
+            if (Tracks(type))
+            {
+                if (!IsDisposable(type))
+                {
+                    diagnostics.Add(new DiagnosticMessage
+                    {
+                        DiagnosticType = DiagnosticType.Error,
+                        MessageData =
+                            $"[InjectionWeaver] '{type.FullName}' tracks a dependency ([Track]) but is not IDisposable, so it " +
+                            $"would never unbind — the binder holds it alive, so GC never reclaims it. Implement IDisposable " +
+                            $"(the unbind is woven into Dispose()), or mark the type [ManualBind]."
+                    });
+                    return false;
+                }
+
+                if (dispose == null)
+                {
+                    diagnostics.Add(new DiagnosticMessage
+                    {
+                        DiagnosticType = DiagnosticType.Error,
+                        MessageData =
+                            $"[InjectionWeaver] '{type.FullName}' is IDisposable but declares no parameterless Dispose() for the " +
+                            $"unbind to be woven into. Add one (it may just call base), or mark the type [ManualBind]."
+                    });
+                    return false;
+                }
+            }
+
+            var modified = false;
+
+            if (dispose != null && IsDisposable(type) && !CallsBinder(dispose))
+            {
+                InsertCall(dispose, unbind, atEnd: true);
+                modified = true;
+            }
+
+            foreach (var constructor in type.Methods.Where(m => m.IsConstructor && !m.IsStatic))
+            {
+                if (DelegatesToThis(constructor, type) || CallsBinder(constructor))
+                    continue;
+
+                InsertCall(constructor, bind, atEnd: true);
+                modified = true;
+            }
+
+            return modified;
+        }
+
+        // A constructor whose initializer is ': this(...)' delegates to another constructor of the same type, which binds instead.
+        private static bool DelegatesToThis(MethodDefinition constructor, TypeDefinition type)
+        {
+            if (!constructor.HasBody)
+                return false;
+
+            foreach (var instruction in constructor.Body.Instructions)
+            {
+                if ((instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt) &&
+                    instruction.Operand is MethodReference called && called.Name == CONSTRUCTOR)
+                {
+                    return called.DeclaringType.FullName == type.FullName;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasInjectableBase(TypeDefinition type)
+        {
+            for (var baseType = type.BaseType?.Resolve(); baseType != null; baseType = baseType.BaseType?.Resolve())
+            {
+                if (IsInjectable(baseType))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool Tracks(TypeDefinition type)
+            => type.Fields.Any(HasTrack) || type.Methods.Any(HasTrack);
+
+        private static bool HasTrack(ICustomAttributeProvider member)
+            => member.CustomAttributes.Any(attribute => attribute.AttributeType.FullName == TRACK_ATTRIBUTE);
+
+        private static bool IsDisposable(TypeDefinition type)
+        {
+            for (var current = type; current != null; current = current.BaseType?.Resolve())
+            {
+                if (ImplementsDisposable(current))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ImplementsDisposable(TypeDefinition type)
+            => type.Interfaces.Any(i =>
+                i.InterfaceType.FullName == DISPOSABLE ||
+                (i.InterfaceType.Resolve() is { } resolved && ImplementsDisposable(resolved)));
 
         private static bool EnsureLifecycle(TypeDefinition type, ModuleDefinition module, string name, MethodReference call, bool atEnd, List<DiagnosticMessage> diagnostics)
         {
@@ -259,12 +389,7 @@ namespace DependencyInjection.CodeGen
         }
 
         private static bool IsInjectable(TypeDefinition type)
-        {
-            if (HasInstall(type))
-                return true;
-
-            return type.Fields.Any(HasInject) || type.Methods.Any(HasInject);
-        }
+            => type.Fields.Any(HasInject) || type.Methods.Any(HasInject);
 
         private static bool HasInstall(TypeDefinition type)
         {

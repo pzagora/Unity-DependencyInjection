@@ -1,6 +1,6 @@
 # Unity Dependency Injection
 
-Attribute-driven dependency injection for Unity. Mark a field or method with `[Inject]` (or `[Track]` to keep receiving updates), mark a provider with `[Install]`, and an **ILPostProcessor weaves the binding for you** — on `MonoBehaviour`s you never write `Binder.Bind(this)` by hand.
+Attribute-driven dependency injection for Unity. Mark a field or method with `[Inject]` (or `[Track]` to keep receiving updates) and an **ILPostProcessor weaves the binding for you** — you never write `Binder.Bind(this)` for a consumer, on `MonoBehaviour`s and plain classes alike. Providers are marked `[Install]` and registered where you own their lifetime (see below).
 
 Self-contained and plug & play: it has no dependency on any other package, and its Mono.Cecil requirement is declared in `package.json`.
 
@@ -16,72 +16,68 @@ Requires Unity `6000.0+`. Assemblies that use these types reference the `Depende
 
 ## How the code generation works
 
-Binding is woven at **compile time** by an `ILPostProcessor` (`Unity.*.CodeGen`, using Mono.Cecil). For every type that opts in, the weaver rewrites the compiled IL so that:
+Binding is woven at **compile time** by an `ILPostProcessor` (`Unity.*.CodeGen`, using Mono.Cecil). A type is woven when it declares an `[Inject]` / `[Track]` member and is **neither** `[ManualBind]` **nor** `[Install]`-marked. The weaver rewrites the compiled IL so that `Binder.Bind(this)` and `Binder.Unbind(this)` run automatically:
 
-- `Binder.Bind(this)` runs at the **end of `Awake`**, and
-- `Binder.Unbind(this)` runs at the **start of `OnDestroy`**,
+- **`MonoBehaviour`s** — bind at the end of `Awake`, unbind at the end of `OnDestroy`.
+- **Plain classes** — bind at the end of the constructor, unbind at the end of `Dispose`.
 
-creating those methods (and calling `base`) when they don't exist. A type is woven when **all** of the following hold:
+The methods are created (calling `base`) when absent. Unbind is placed **last** so the type's own teardown can still use its injected fields — `Unbind` clears them. In a class hierarchy only the top-most injectable type is woven; its `Bind(this)` resolves the whole instance.
 
-- it derives from `MonoBehaviour` (that's where `Awake`/`OnDestroy` exist),
-- it declares an `[Inject]`/`[Track]` member, or is `[Install]`-marked (on the class or an implemented interface), and
-- it is **not** `[ManualBind]`.
+**`[Install]` providers are never woven.** A provider is a service you register explicitly, where you control its lifetime — typically an installer `MonoBehaviour` that binds its set of services. The weaver leaves `[Install]` types (and `[ManualBind]` types) alone.
 
-The weaver is **additive and idempotent**: if a type — or any of its base types — already binds, it is skipped. That means it coexists with hand-written binding and never double-binds. Assemblies are only processed if they reference this package, so unrelated code pays no cost.
+A plain class that uses **`[Track]`** must be `IDisposable` — the unbind is woven into `Dispose`. Otherwise the binder would keep it alive forever (GC can never reclaim a tracked object), so it would leak; the weaver reports this as a build error.
 
-Because the hook points are `Awake`/`OnDestroy`, **only `MonoBehaviour`s are woven**. Plain classes bind themselves (see below); they are never touched by the weaver.
+The weaver is **additive and idempotent**: a type that already binds (itself or via a base) is skipped, so it coexists with hand-written binding and never double-binds. Assemblies are only processed if they reference this package.
 
 ## Usage
 
-### MonoBehaviour — fully automatic
+All attributes and `Binder` live in the `DependencyInjection` namespace.
 
-No `Binder` calls at all; the weaver adds them. All attributes and `Binder` live in the `DependencyInjection` namespace:
+### Consumer — fully automatic
+
+No `Binder` calls at all; the weaver adds them. The same for a `MonoBehaviour` or a plain class:
 
 ```csharp
 using DependencyInjection;
 
-[Install(typeof(IInventoryService))]
-public sealed class InventoryService : MonoBehaviour, IInventoryService { }
-
+// MonoBehaviour — bound in Awake, unbound in OnDestroy.
 public sealed class Hud : MonoBehaviour
 {
     [Inject] private IInventoryService _inventory;
-
-    // No Awake / OnDestroy, no Binder.Bind — the weaver injects them.
 }
-```
 
-`[Install(typeof(IInventoryService))]` makes `InventoryService` register itself as `IInventoryService` when it is woven, so any `[Inject] IInventoryService` resolves to it.
-
-### Plain class — bind in the constructor
-
-Non-`MonoBehaviour` types have no `Awake`, so the weaver leaves them alone (no `[ManualBind]` needed). Bind in the constructor and unbind when the object's own lifetime ends:
-
-```csharp
-public sealed class InventoryPresenter : IDisposable
+// Plain class — bound in the constructor (nothing to unbind for a pure consumer).
+public sealed class InventoryPresenter
 {
     [Inject] private readonly IInventoryService _inventory;
-
-    public InventoryPresenter() => Binder.Bind(this);
-
-    public void Dispose() => Binder.Unbind(this);
 }
 ```
 
-### MonoBehaviour with a custom unbind — opt out with `[ManualBind]`
+### Provider — marked `[Install]`, registered where you own it
 
-When a `MonoBehaviour` must control its own binding lifecycle — for example unbinding on `Dispose` rather than on `OnDestroy` — mark it `[ManualBind]` so the weaver never touches its `Awake`/`OnDestroy`, and write the calls yourself:
+`[Install]` marks a type (or an implemented interface) as a provider. The weaver does **not** bind it; you register it where you manage its lifetime — typically an installer that binds a set of services:
+
+```csharp
+[Install(typeof(IInventoryService))]
+public sealed class InventoryService : IInventoryService { }
+
+// e.g. inside an installer MonoBehaviour:
+Binder.Bind(inventoryService);    // registers it as IInventoryService
+Binder.Unbind(inventoryService);  // on teardown
+```
+
+### `[ManualBind]` — opt out of weaving
+
+When a type must drive its own binding lifecycle, mark it `[ManualBind]` and write the calls yourself:
 
 ```csharp
 [ManualBind]
-public sealed class SessionView : MonoBehaviour, IDisposable
+public sealed class SessionView : MonoBehaviour
 {
     [Inject] private ISessionService _session;
 
     private void Awake() => Binder.Bind(this);
-
-    // Unbinds deterministically on Dispose, not when the GameObject is destroyed.
-    public void Dispose() => Binder.Unbind(this);
+    private void OnDisable() => Binder.Unbind(this); // an unusual lifecycle, on purpose
 }
 ```
 
@@ -89,9 +85,9 @@ public sealed class SessionView : MonoBehaviour, IDisposable
 
 | Member | Purpose |
 | --- | --- |
-| `[Inject]` | Resolve a dependency into a field or single-parameter method once it is installed. |
-| `[Track]` | Like `[Inject]`, but keeps receiving the latest value whenever the binding changes. |
-| `[Install]` | Register the attributed type (or an explicit type) as a provider — on the class or an implemented interface. |
-| `[ManualBind]` | Opt a `MonoBehaviour` out of weaving so it manages its own `Binder` calls. |
-| `Binder.Bind` / `Unbind` | Wire / unwire an instance's injects and installs (used directly only by plain classes and `[ManualBind]` types). |
+| `[Inject]` | Resolve a dependency into a field or single-parameter method once it is installed. Woven automatically. |
+| `[Track]` | Like `[Inject]`, but keeps receiving the latest value whenever the binding changes. A plain `[Track]` class must be `IDisposable`. |
+| `[Install]` | Mark a type (or implemented interface) as a provider. **Not woven** — register it with `Binder.Bind` / `Install` where you own its lifetime. |
+| `[ManualBind]` | Opt a type out of weaving so it manages its own `Binder` calls. |
+| `Binder.Bind` / `Unbind` | Wire / unwire an instance's injects and installs. Used directly only for `[Install]` providers and `[ManualBind]` types. |
 | `Binder.Install` / `Uninstall` | Register / remove a provider instance manually. |
