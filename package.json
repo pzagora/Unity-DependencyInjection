@@ -1,0 +1,15 @@
+{
+  "name": "com.zagoradev.unity.commons.dependencyinjection",
+  "displayName": "Unity Commons Dependency Injection (zagora.dev)",
+  "version": "1.0.0",
+  "unity": "6000.0",
+  "description": "Attribute-driven dependency injection for Unity: mark fields with [Inject]/[Track], register with Install, and wire objects through Binder.Bind. Standalone assembly (Commons.DependencyInjection) with no package dependencies.",
+  "keywords": [
+    "unity",
+    "dependency-injection",
+    "di",
+    "ioc",
+    "commons",
+    "zagora.dev"
+  ]
+}
