@@ -7,10 +7,10 @@ using Mono.Cecil.Rocks;
 using Unity.CompilationPipeline.Common.Diagnostics;
 using Unity.CompilationPipeline.Common.ILPostProcessing;
 
-namespace Commons.DependencyInjection.CodeGen
+namespace DependencyInjection.CodeGen
 {
     /// <summary>
-    /// ILPostProcessor that weaves <see cref="Commons.Binder"/> calls into injectable <c>MonoBehaviour</c>s so that
+    /// ILPostProcessor that weaves <see cref="DependencyInjection.Binder"/> calls into injectable <c>MonoBehaviour</c>s so that
     /// explicit <c>Binder.Bind(this)</c> / <c>Binder.Unbind(this)</c> are not required. A type is woven when it derives
     /// from <c>MonoBehaviour</c>, declares an <c>[Inject]</c>/<c>[Track]</c> member or is <c>[Install]</c>-marked, is not
     /// <c>[ManualBind]</c>, and neither it nor a base type already binds. Weaving is additive: a type whose chain already
@@ -18,12 +18,12 @@ namespace Commons.DependencyInjection.CodeGen
     /// </summary>
     public sealed class InjectionWeaver : ILPostProcessor
     {
-        private const string TARGET_DEPENDENCY = "Commons.DependencyInjection";
-        private const string INJECT_ATTRIBUTE = "Commons.Inject";
-        private const string INSTALL_ATTRIBUTE = "Commons.Install";
-        private const string MANUAL_BIND_ATTRIBUTE = "Commons.ManualBind";
+        private const string TARGET_DEPENDENCY = "DependencyInjection";
+        private const string INJECT_ATTRIBUTE = "DependencyInjection.Inject";
+        private const string INSTALL_ATTRIBUTE = "DependencyInjection.Install";
+        private const string MANUAL_BIND_ATTRIBUTE = "DependencyInjection.ManualBind";
         private const string MONO_BEHAVIOUR = "UnityEngine.MonoBehaviour";
-        private const string BINDER_TYPE = "Commons.Binder";
+        private const string BINDER_TYPE = "DependencyInjection.Binder";
         private const string AWAKE = "Awake";
         private const string ON_DESTROY = "OnDestroy";
         private const string BIND = "Bind";

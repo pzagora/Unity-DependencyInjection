@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine.Scripting;
 
-namespace Commons
+namespace DependencyInjection
 {
     /// <summary>
     /// Marks a field or a method to have a dependency injected into, once, by <see cref="Binder"/>

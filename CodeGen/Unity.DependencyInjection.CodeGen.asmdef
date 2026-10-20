@@ -1,6 +1,6 @@
 {
-    "name": "Unity.Commons.DependencyInjection.CodeGen",
-    "rootNamespace": "Commons.DependencyInjection.CodeGen",
+    "name": "Unity.DependencyInjection.CodeGen",
+    "rootNamespace": "DependencyInjection.CodeGen",
     "references": [],
     "includePlatforms": [
         "Editor"

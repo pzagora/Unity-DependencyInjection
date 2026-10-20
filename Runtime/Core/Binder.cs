@@ -5,7 +5,7 @@ using System.Reflection;
 using UnityEditor;
 using UnityEditor.Callbacks;
 
-namespace Commons
+namespace DependencyInjection
 {
     /// <summary>
     /// Handles class fields marked by <see cref="Inject"/> or <see cref="Track"/> and classes by <see cref="Install"/> dependency binding

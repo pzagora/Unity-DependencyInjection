@@ -12,7 +12,7 @@ Add to `Packages/manifest.json`:
 "com.zagoradev.unity.dependencyinjection": "https://github.com/pzagora/Unity-DependencyInjection.git"
 ```
 
-Requires Unity `6000.0+`. Assemblies that use these types reference this package's assembly in their asmdef; code in the predefined assemblies (`Assembly-CSharp`) sees it automatically.
+Requires Unity `6000.0+`. Assemblies that use these types reference the `DependencyInjection` assembly in their asmdef; code in the predefined assemblies (`Assembly-CSharp`) sees it automatically.
 
 ## How the code generation works
 
@@ -35,9 +35,11 @@ Because the hook points are `Awake`/`OnDestroy`, **only `MonoBehaviour`s are wov
 
 ### MonoBehaviour — fully automatic
 
-No `Binder` calls at all; the weaver adds them:
+No `Binder` calls at all; the weaver adds them. All attributes and `Binder` live in the `DependencyInjection` namespace:
 
 ```csharp
+using DependencyInjection;
+
 [Install(typeof(IInventoryService))]
 public sealed class InventoryService : MonoBehaviour, IInventoryService { }
 

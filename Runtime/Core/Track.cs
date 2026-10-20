@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Commons
+namespace DependencyInjection
 {
     /// <summary>
     /// Marks a field or a method to have a dependency kept updated into, by <see cref="Binder"/>

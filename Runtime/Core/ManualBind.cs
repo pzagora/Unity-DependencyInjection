@@ -1,6 +1,6 @@
 using System;
 
-namespace Commons
+namespace DependencyInjection
 {
     /// <summary>
     /// Opts a type out of automatic <see cref="Binder"/> weaving. Apply it to a type that manages its own

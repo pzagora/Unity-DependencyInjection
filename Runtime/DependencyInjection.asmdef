@@ -1,6 +1,6 @@
 {
-    "name": "Commons.DependencyInjection",
-    "rootNamespace": "Commons",
+    "name": "DependencyInjection",
+    "rootNamespace": "DependencyInjection",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

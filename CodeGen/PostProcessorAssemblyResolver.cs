@@ -4,7 +4,7 @@ using System.IO;
 using Mono.Cecil;
 using Unity.CompilationPipeline.Common.ILPostProcessing;
 
-namespace Commons.DependencyInjection.CodeGen
+namespace DependencyInjection.CodeGen
 {
     internal sealed class PostProcessorAssemblyResolver : IAssemblyResolver
     {

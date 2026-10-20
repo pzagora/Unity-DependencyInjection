@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Commons
+namespace DependencyInjection
 {
     /// <summary>
     /// Marks a class to have itself installed as a dependency by <see cref="Binder"/>
