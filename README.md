@@ -9,7 +9,7 @@ Assembly: **`Commons.DependencyInjection`**. It is **standalone** — it has no 
 Add to `Packages/manifest.json`:
 
 ```json
-"com.zagoradev.unity.commons.dependencyinjection": "https://github.com/pzagora/Commons.DependencyInjection.git"
+"com.zagoradev.unity.commons.dependencyinjection": "https://github.com/pzagora/Unity-Commons.DependencyInjection.git"
 ```
 
 Requires Unity `6000.0+`. Assemblies that use these types must reference `Commons.DependencyInjection` in their asmdef; code in the predefined assemblies (`Assembly-CSharp`) sees it automatically.
