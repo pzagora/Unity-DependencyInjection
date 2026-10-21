@@ -4,6 +4,11 @@
   "version": "1.0.0",
   "unity": "6000.0",
   "description": "Attribute-driven dependency injection for Unity: mark fields with [Inject]/[Track], register with [Install], and let the injection weaver wire objects automatically. Self-contained and plug & play.",
+  "author": {
+    "name": "Piotr Zagóra",
+    "email": "piotr@zagora.dev",
+    "url": "https://zagora.dev/"
+  },
   "keywords": [
     "unity",
     "dependency-injection",
