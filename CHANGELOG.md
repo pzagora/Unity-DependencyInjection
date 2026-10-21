@@ -2,6 +2,11 @@
 
 All notable changes to this package are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package adheres to Semantic Versioning.
 
+## [1.0.1]
+
+### Added
+- Author metadata in `package.json`.
+
 ## [1.0.0]
 
 ### Added
