@@ -66,6 +66,65 @@ Binder.Bind(inventoryService);    // registers it as IInventoryService
 Binder.Unbind(inventoryService);  // on teardown
 ```
 
+A convenient pattern is an **installer** base that owns the providers' lifetime — bind them on `Awake`, unbind and dispose them on `OnDestroy`. The package doesn't ship one (that would tie it to your service and base types), but here it is in full. `ValidatedMonoBehaviour` and `IService` are your own project's types (e.g. from Unity Commons); the only DI-specific calls are `Binder.Bind` / `Binder.Unbind`:
+
+```csharp
+public abstract class Installer : ValidatedMonoBehaviour
+{
+    // Subclasses apply [DefaultExecutionOrder(ExecutionOrder)] so providers bind before their consumers.
+    protected const int ExecutionOrder = -5;
+
+    private readonly List<IService> _services = new();
+
+    protected virtual void Awake()
+        => BindServices();
+
+    protected virtual void OnDestroy()
+        => UnbindServices();
+
+    /// <summary>Derived classes override this and call AddService() for each service they register.</summary>
+    protected abstract void AddServices();
+
+    protected void AddService(IService service)
+        => _services.Add(service);
+
+    private void BindServices()
+    {
+        AddServices();
+
+        foreach (var service in _services)
+            Binder.Bind(service);
+    }
+
+    private void UnbindServices()
+    {
+        foreach (var service in _services)
+        {
+            Binder.Unbind(service);
+
+            if (service is IDisposable disposable)
+                disposable.Dispose();
+        }
+
+        _services.Clear();
+    }
+}
+```
+
+A concrete installer then just lists its providers:
+
+```csharp
+[DefaultExecutionOrder(ExecutionOrder)]
+public sealed class GameInstaller : Installer
+{
+    protected override void AddServices()
+    {
+        AddService(new InventoryService());
+        AddService(new SaveService());
+    }
+}
+```
+
 ### `[ManualBind]` — opt out of weaving
 
 When a type must drive its own binding lifecycle, mark it `[ManualBind]` and write the calls yourself:
