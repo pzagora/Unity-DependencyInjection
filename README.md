@@ -6,10 +6,15 @@ Self-contained and plug & play: it has no dependency on any other package, and i
 
 ## Installation
 
-Add to `Packages/manifest.json`:
+Install from the zagora.dev UPM registry — add the scoped registry to `Packages/manifest.json`, then the package; its dependencies install automatically:
 
 ```json
-"com.zagoradev.unity.dependencyinjection": "https://github.com/pzagora/Unity-DependencyInjection.git"
+"scopedRegistries": [
+    { "name": "zagora.dev", "url": "https://upm.zagora.dev", "scopes": [ "com.zagoradev" ] }
+],
+"dependencies": {
+  "com.zagoradev.unity.dependencyinjection": "1.0.3"
+}
 ```
 
 Requires Unity `6000.0+`. Assemblies that use these types reference the `DependencyInjection` assembly in their asmdef; code in the predefined assemblies (`Assembly-CSharp`) sees it automatically.
