@@ -1,9 +1,12 @@
 {
   "name": "com.zagoradev.unity.dependencyinjection",
   "displayName": "Unity Dependency Injection (zagora.dev)",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "unity": "6000.0",
   "description": "Attribute-driven dependency injection for Unity: mark fields with [Inject]/[Track], register with [Install], and let the injection weaver wire objects automatically. Self-contained and plug & play.",
+  "documentationUrl": "https://github.com/pzagora/Unity-DependencyInjection/blob/main/README.md",
+  "changelogUrl": "https://github.com/pzagora/Unity-DependencyInjection/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/pzagora/Unity-DependencyInjection/blob/main/LICENSE.md",
   "author": {
     "name": "Piotr Zagóra",
     "email": "piotr@zagora.dev",
