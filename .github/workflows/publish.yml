@@ -1,5 +1,8 @@
 # Copy to <package repo>/.github/workflows/publish.yml. Pushing a tag equal to package.json's version
-# (e.g. `2.1.2`, or `v2.1.2`) publishes that version to the registry. Needs the UPM_PUBLISH_TOKEN repo secret.
+# (e.g. `2.1.2`, or `v2.1.2`) publishes that version to the registry. Needs the UPM_PUBLISH_TOKEN repo secret; the
+# UPM_PUBLISH_REGISTRY repo variable overrides where it publishes (the workers.dev address, since zagora.dev's Bot Fight
+# Mode challenges GitHub Actions runners). Consumers always install from https://upm.zagora.dev.
+
 name: Publish
 
 on:
@@ -15,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://upm.zagora.dev/
+          registry-url: ${{ vars.UPM_PUBLISH_REGISTRY || 'https://upm.zagora.dev/' }}
 
       - name: Check tag matches package.json version
         run: |
