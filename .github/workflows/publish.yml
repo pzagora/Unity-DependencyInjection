@@ -1,5 +1,6 @@
 # Copy to <package repo>/.github/workflows/publish.yml. Pushing a tag equal to package.json's version
 # (e.g. `2.1.2`, or `v2.1.2`) signs that version with the Unity organization and publishes it to the registry.
+# release.yml also calls it (workflow_call) after auto-tagging a version bump on main.
 #
 # Secrets: UPM_PUBLISH_TOKEN (registry publish token), and for signing a Unity Cloud service account with the
 # "Package Manager Package Signer" role: UPM_SERVICE_ACCOUNT_KEY_ID, UPM_SERVICE_ACCOUNT_KEY_SECRET, UPM_ORG_ID.
@@ -11,6 +12,12 @@ name: Publish
 on:
   push:
     tags: ['*']
+  workflow_call:
+    inputs:
+      ref:
+        description: Tag to publish
+        type: string
+        required: true
 
 env:
   UPM_CLI_VERSION: v9.36.0
@@ -20,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -29,11 +38,13 @@ jobs:
       - name: Check tag matches package.json version
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          TAG="${GITHUB_REF_NAME#v}"
-          if [ "$VERSION" != "$TAG" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+          TAG_NAME="${INPUT_REF:-$GITHUB_REF_NAME}"
+          if [ "$VERSION" != "${TAG_NAME#v}" ]; then
+            echo "::error::Tag $TAG_NAME does not match package.json version $VERSION"
             exit 1
           fi
+        env:
+          INPUT_REF: ${{ inputs.ref }}
 
       - name: Install Unity Package Manager CLI
         run: |

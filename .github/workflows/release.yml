@@ -1,0 +1,64 @@
+# Copy to <package repo>/.github/workflows/release.yml (next to publish.yml). When a push to main changes package.json
+# to a version that has no tag yet, it tags the commit `<version>`, creates the branch `release-<version>`, and publishes
+# that version through publish.yml. Tags pushed by a workflow don't trigger other workflows, which is why it calls
+# publish.yml directly instead of relying on the tag push.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      created: ${{ steps.tag.outputs.created }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and branch the release
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null; then
+            echo "::notice::$VERSION is already tagged; nothing to release."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "$VERSION"
+          git push origin "refs/tags/$VERSION"
+
+          if git ls-remote --exit-code --heads origin "refs/heads/release-$VERSION" >/dev/null; then
+            echo "::warning::Branch release-$VERSION already exists; left unchanged."
+          else
+            git push origin "HEAD:refs/heads/release-$VERSION"
+          fi
+
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    uses: ./.github/workflows/publish.yml
+    with:
+      ref: ${{ needs.tag.outputs.version }}
+    secrets: inherit
