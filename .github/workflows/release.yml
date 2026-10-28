@@ -1,6 +1,6 @@
 # Copy to <package repo>/.github/workflows/release.yml (next to publish.yml). When a push to main changes package.json
-# to a version that has no tag yet, it tags the commit `<version>`, creates the branch `release-<version>`, and publishes
-# that version through publish.yml. Tags pushed by a workflow don't trigger other workflows, which is why it calls
+# to a version that has no tag yet, it tags the commit `<version>` and publishes that version through publish.yml, which
+# also creates the GitHub release. Tags pushed by a workflow don't trigger other workflows, which is why it calls
 # publish.yml directly instead of relying on the tag push.
 
 name: Release
@@ -31,7 +31,7 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Tag and branch the release
+      - name: Tag the release
         id: tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -46,12 +46,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$VERSION" -m "$VERSION"
           git push origin "refs/tags/$VERSION"
-
-          if git ls-remote --exit-code --heads origin "refs/heads/release-$VERSION" >/dev/null; then
-            echo "::warning::Branch release-$VERSION already exists; left unchanged."
-          else
-            git push origin "HEAD:refs/heads/release-$VERSION"
-          fi
 
           echo "created=true" >> "$GITHUB_OUTPUT"
 
