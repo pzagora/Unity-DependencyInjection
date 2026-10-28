@@ -13,7 +13,7 @@ Install from the zagora.dev UPM registry — add the scoped registry to `Package
     { "name": "zagora.dev", "url": "https://upm.zagora.dev", "scopes": [ "com.zagoradev" ] }
 ],
 "dependencies": {
-  "com.zagoradev.unity.dependencyinjection": "1.0.4"
+  "com.zagoradev.unity.dependencyinjection": "1.0.5"
 }
 ```
 

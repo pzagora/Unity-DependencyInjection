@@ -1,6 +1,9 @@
 # Copy to <package repo>/.github/workflows/publish.yml. Pushing a tag equal to package.json's version
-# (e.g. `2.1.2`, or `v2.1.2`) publishes that version to the registry. Needs the UPM_PUBLISH_TOKEN repo secret; the
-# UPM_PUBLISH_REGISTRY repo variable overrides where it publishes (the workers.dev address, since zagora.dev's Bot Fight
+# (e.g. `2.1.2`, or `v2.1.2`) signs that version with the Unity organization and publishes it to the registry.
+#
+# Secrets: UPM_PUBLISH_TOKEN (registry publish token), and for signing a Unity Cloud service account with the
+# "Package Manager Package Signer" role: UPM_SERVICE_ACCOUNT_KEY_ID, UPM_SERVICE_ACCOUNT_KEY_SECRET, UPM_ORG_ID.
+# The UPM_PUBLISH_REGISTRY variable overrides where it publishes (the workers.dev address, since zagora.dev's Bot Fight
 # Mode challenges GitHub Actions runners). Consumers always install from https://upm.zagora.dev.
 
 name: Publish
@@ -8,6 +11,9 @@ name: Publish
 on:
   push:
     tags: ['*']
+
+env:
+  UPM_CLI_VERSION: v9.36.0
 
 jobs:
   publish:
@@ -29,9 +35,27 @@ jobs:
             exit 1
           fi
 
-      - name: Publish
+      - name: Install Unity Package Manager CLI
+        run: |
+          curl -fsSL https://cdn.packages.unity.com/upm-cli/install.sh | bash -s -- "$UPM_CLI_VERSION"
+          echo "$HOME/.upm/bin" >> "$GITHUB_PATH"
+
+      - name: Pack and sign
         run: |
           rm -rf .github
-          npm publish
+          upm pack . --organization-id "$UPM_ORG_ID" --destination "$RUNNER_TEMP/package"
+          TARBALL=$(ls "$RUNNER_TEMP"/package/*.tgz)
+          if ! tar -tzf "$TARBALL" | grep -qx 'package/.attestation.p7m'; then
+            echo "::error::$TARBALL has no package/.attestation.p7m signature"
+            exit 1
+          fi
+          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
+        env:
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+          UPM_ORG_ID: ${{ secrets.UPM_ORG_ID }}
+
+      - name: Publish
+        run: npm publish "$TARBALL"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.UPM_PUBLISH_TOKEN }}
