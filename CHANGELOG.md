@@ -2,6 +2,11 @@
 
 All notable changes to this package are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package adheres to Semantic Versioning.
 
+## [1.0.6]
+
+### Changed
+- Re-signed under the renamed Unity organization: the package signature now names **zagora.dev** (previously p_zagora). No code changes.
+
 ## [1.0.5]
 
 ### Changed
