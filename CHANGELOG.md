@@ -2,6 +2,12 @@
 
 All notable changes to this package are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package adheres to Semantic Versioning.
 
+## [1.0.7]
+
+### Fixed
+- Player builds failed to compile (`UnityEditor.Callbacks` doesn't exist outside the Editor): `Binder`'s
+  `UnityEditor` usings are now Editor-only.
+
 ## [1.0.6]
 
 ### Changed
