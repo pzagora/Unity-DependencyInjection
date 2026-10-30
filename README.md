@@ -13,7 +13,7 @@ Install from the zagora.dev UPM registry — add the scoped registry to `Package
     { "name": "zagora.dev", "url": "https://upm.zagora.dev", "scopes": [ "com.zagoradev" ] }
 ],
 "dependencies": {
-  "com.zagoradev.unity.dependencyinjection": "1.0.6"
+  "com.zagoradev.unity.dependencyinjection": "1.0.8"
 }
 ```
 
@@ -155,3 +155,13 @@ public sealed class SessionView : MonoBehaviour
 | `[ManualBind]` | Opt a type out of weaving so it manages its own `Binder` calls. |
 | `Binder.Bind` / `Unbind` | Wire / unwire an instance's injects and installs. Used directly only for `[Install]` providers and `[ManualBind]` types. |
 | `Binder.Install` / `Uninstall` | Register / remove a provider instance manually. |
+
+## Tests
+
+Package-owned EditMode tests under `Tests/Editor` cover late and one-shot injection, tracked-provider replacement and
+fallback, method injection, manual binding, and real IL-weaver constructor/`Dispose` integration. Add
+`com.zagoradev.unity.dependencyinjection` to the project's `testables` array, then run them with Unity Test Framework:
+
+```bash
+Unity -batchmode -nographics -projectPath . -runTests -testPlatform EditMode -testResults TestResults.xml
+```
